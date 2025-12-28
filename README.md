@@ -19,14 +19,25 @@ bash setup.sh
 
 This installs uv, vllm environment, and mini-swe-agent.
 
+
+# Quick Eval
+
+```shell
+conda create -n swe_easy_eval python=3.12 -y
+conda activate swe_easy_eval
+python start.py --model Qwen/Qwen3-8B --tensor-parallel-size 4 --output-dir ./results/qwen3-8b
+```
+
+# Step by step eval
+
+## Step 1: Configure Your Model
+
 Run vllm serve to start a serving server
 ```shell
 vllm serve Qwen/Qwen2.5-Coder-7B-Instruct --tensor-parallel-size 4
 ```
 
-## Step 3: Configure Your Model
-
-### 3.1 Update Model Configuration
+### 1.1 Update Model Configuration
 Edit the config file:
 ```bash
 vim ~/benchmark/swebench.yaml
@@ -42,7 +53,7 @@ model:
     api_base: "http://0.0.0.0:8000/v1"
 ```
 
-### 3.2 Update Model Registry
+### 1.2 Update Model Registry
 Create `~/benchmark/registry.json`:
 ```json
 {
@@ -56,7 +67,7 @@ Create `~/benchmark/registry.json`:
 }
 ```
 
-## Step 4: Generate Predictions
+## Step 2: Generate Predictions
 
 Run the model on SWE-bench:
 ```bash
@@ -71,16 +82,16 @@ mini-extra swebench \
 
 This creates `~/qwen2.5/preds.json` with your model's predictions.
 
-## Step 5: Evaluate Results
+## Step 3: Evaluate Results
 
-### 5.1 Install SWE-bench
+### 4.1 Install SWE-bench
 ```bash
 git clone https://github.com/SWE-bench/SWE-bench.git
 cd SWE-bench
 pip install -e .
 ```
 
-### 5.2 Run Evaluation
+### 4.2 Run Evaluation
 ```bash
 python -m swebench.harness.run_evaluation \
     --dataset_name SumanthRH/SWE-bench_Verified \

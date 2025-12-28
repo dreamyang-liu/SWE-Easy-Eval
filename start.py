@@ -18,7 +18,7 @@ from pathlib import Path
 def run_cmd(cmd, check=True, shell=True):
     """Execute shell command with error handling."""
     print(f"Running: {cmd}")
-    result = subprocess.run(cmd, shell=shell, capture_output=True, text=True)
+    result = subprocess.run(cmd, shell=shell, text=True)
     if check and result.returncode != 0:
         print(f"Error: {result.stderr}")
         sys.exit(1)
@@ -40,22 +40,31 @@ def setup_environment():
     else:
         print("Warning: setup.sh not found, skipping...")
 
-def create_config_files(model_name, api_base, benchmark_dir):
+def create_config_files(model_name, api_base, benchmark_dir, max_tokens):
     """Create configuration files for the model."""
     benchmark_path = Path(benchmark_dir)
     benchmark_path.mkdir(exist_ok=True)
 
-    # Create swebench.yaml
-    config = {
-        'model': {
+    # Load default config and modify model part
+    import yaml
+    default_config_path = "swebench-default.yaml"
+
+    try:
+        with open(default_config_path, 'r') as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        # Fallback to basic config if default not found
+        config = {}
+
+    # Modify only the model part
+    config['model'] = {
             'model_name': f"hosted_vllm/{model_name}",
             'cost_tracking': "ignore_errors",
             'litellm_model_registry': str(benchmark_path / "registry.json"),
             'model_kwargs': {
-                'api_base': api_base
+                'api_base': f"{api_base}/v1"
             }
         }
-    }
 
     import yaml
     with open(benchmark_path / "swebench.yaml", 'w') as f:
@@ -63,8 +72,8 @@ def create_config_files(model_name, api_base, benchmark_dir):
 
     # Create registry.json
     registry = {
-        model_name: {
-            "max_tokens": 32768,
+        f"hosted_vllm/{model_name}": {
+            "max_tokens": max_tokens,
             "input_cost_per_token": 0.0,
             "output_cost_per_token": 0.0,
             "litellm_provider": "hosted_vllm",
@@ -222,9 +231,10 @@ def main():
     parser.add_argument("--model", default="Qwen/Qwen2.5-Coder-7B-Instruct", help="Model name")
     parser.add_argument("--api-base", default="http://0.0.0.0:8000", help="API base URL")
     parser.add_argument("--port", type=int, default=8000, help="VLLM server port")
+    parser.add_argument("--max-tokens", type=int, default=32768, help="Context window of model")
     parser.add_argument("--tensor-parallel-size", type=int, default=4, help="Tensor parallel size")
-    parser.add_argument("--benchmark-dir", default="~/benchmark", help="Benchmark config directory")
-    parser.add_argument("--output-dir", default="~/qwen2.5", help="Output directory")
+    parser.add_argument("--benchmark-dir", default="./benchmark-config", help="Benchmark config directory")
+    parser.add_argument("--output-dir", default="./result/qwen2.5", help="Output directory")
     parser.add_argument("--workers", type=int, default=32, help="Number of workers")
     parser.add_argument("--skip-setup", action="store_true", help="Skip environment setup")
     parser.add_argument("--skip-server", action="store_true", help="Skip VLLM server management")
@@ -250,7 +260,7 @@ def main():
                 setup_environment()
 
             # Step 3: Create config files
-            create_config_files(args.model, args.api_base, benchmark_dir)
+            create_config_files(args.model, args.api_base, benchmark_dir, args.max_tokens)
 
             # Step 4: Manage VLLM server
             if not args.skip_server:
